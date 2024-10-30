@@ -126,9 +126,10 @@ class Transaction:
     def validate(self, unspentOutputDict):
         """ Validate this transaction given a dictionary of unspent transaction outputs.
             unspentOutputDict is a dictionary of items of the following format: { (txHash, offset) : Output }
+            offset helps us identify the exact output
         """
         # if you are taking 461: return True
-
+    
         pass
 
 
@@ -149,11 +150,20 @@ class HashableMerkleTree:
     """
 
     def __init__(self, hashableList = None):
-        pass
+        self.hashableList = hashableList
+
+    def _findMerkelHash(self,arr):
+        if len(arr) == 1:
+            return arr[0]
+        first,second = 0,1
+        returnArr = []
+        while second <= len(arr) -1:
+           returnArr.append(hashlib.sha256(arr[first],arr[second]))
+        return self._findMerkelHash(returnArr)
 
     def calcMerkleRoot(self):
         """ Calculate the merkle root of this tree."""
-        pass
+        return self._findMerkelHash(self.hashableList)
 
 
 class BlockContents:
@@ -178,25 +188,31 @@ class Block:
         It should have the normal fields needed in a block and also an instance of "BlockContents"
         where we will store a merkle tree of transactions.
     """
-    def __init__(self):
+    def __init__(self,header,inputs, outputs):
         # Hint, beyond the normal block header fields what extra data can you keep track of per block to make implementing other APIs easier?
-        pass
+        self.inputs = inputs 
+        self.outputs = outputs
+        self.prevBlockHash = None
+        self.target = None
+        self.nonce = 0
+        self.header = header
+        self.BlockContents = HashableMerkleTree()
 
     def getContents(self):
         """ Return the Block content (a BlockContents object)"""
-        pass
+        return self.BlockContents
 
     def setContents(self, data):
         """ set the contents of this block's merkle tree to the list of objects in the data parameter """
-        pass
+        self.BlockContents = HashableMerkleTree(data)
 
     def setTarget(self, target):
         """ Set the difficulty target of this block """
-        pass
+        self.target = target
 
     def getTarget(self):
         """ Return the difficulty target of this block """
-        pass
+        return self.target
 
     def getHash(self):
         """ Calculate the hash of this block. Return as an integer """
@@ -204,15 +220,17 @@ class Block:
 
     def setPriorBlockHash(self, priorHash):
         """ Assign the parent block hash """
-        pass
+        self.prevBlockHash = priorHash
 
     def getPriorBlockHash(self):
         """ Return the parent block hash """
-        pass
+        return self.prevBlockHash 
 
     def mine(self,tgt):
         """Update the block header to the passed target (tgt) and then search for a nonce which produces a block who's hash is less than the passed target, "solving" the block"""
-        pass
+        self.header = tgt
+        while self.getHasH() <= tgt:
+            self.nonce += 1
 
     def validate(self, unspentOutputs, maxMint):
         """ Given a dictionary of unspent outputs, and the maximum amount of
@@ -239,7 +257,8 @@ class Blockchain(object):
             genesisTarget is the difficulty target of the genesis block (that you should create as part of this initialization).
             maxMintCoinsPerTx is a consensus parameter -- don't let any block into the chain that creates more coins than this!
         """
-        pass
+        self.genesisBlock = Block(genesisTarget,None,None)
+        self.maxMintCoinsPerTx = maxMintCoinsPerTx
 
     def getTip(self):
         """ Return the block at the tip (end) of the blockchain fork that has the largest amount of work"""
@@ -247,7 +266,7 @@ class Blockchain(object):
 
     def getWork(self, target):
         """Get the "work" needed for this target.  Work is the ratio of the genesis target to the passed target"""
-        pass
+        return target.getTarget()/self.genesisBlock.getTarget()
 
     def getCumulativeWork(self, blkHash):
         """Return the cumulative work for the block identified by the passed hash.  Return None if the block is not in the blockchain"""
