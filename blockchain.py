@@ -194,12 +194,12 @@ class Block:
         It should have the normal fields needed in a block and also an instance of "BlockContents"
         where we will store a merkle tree of transactions.
     """
-    def __init__(self,header,transactions,children=None, parent=None):
+    def __init__(self,target=None,header=None,transactions=None,children=None, parent=None):
         # Hint, beyond the normal block header fields what extra data can you keep track of per block to make implementing other APIs easier?
         self.txs = transactions
         self.prevBlockHash = None
-        self.target = None
         self.nonce = 0
+        self.target = target
         self.header = header
         self.BlockContents = HashableMerkleTree()
         self.parent = parent
@@ -222,7 +222,19 @@ class Block:
 
     def getHash(self):
         """ Calculate the hash of this block. Return as an integer """
-        return hashlib.sha256(self.txs,self.prevBlockHash,self.header,self.nonce,self.BlockContents.calcMerkleRoot())
+        txs_data = str(self.txs).encode()  
+        prev_hash_data = str(self.prevBlockHash).encode() if self.prevBlockHash else b''  
+        header_data = str(self.header).encode() if self.header else b''  
+        nonce_data = str(self.nonce).encode()  
+        merkle_root_data = str(self.BlockContents.calcMerkleRoot()).encode()  
+        
+        # Concatenate all byte data
+        combined_data = txs_data + prev_hash_data + header_data + nonce_data + merkle_root_data
+        
+
+        block_hash = hashlib.sha256(combined_data).hexdigest()
+        return int(block_hash, 16)
+  
 
     def setPriorBlockHash(self, priorHash):
         """ Assign the parent block hash """
@@ -235,7 +247,7 @@ class Block:
     def mine(self,tgt):
         """Update the block header to the passed target (tgt) and then search for a nonce which produces a block who's hash is less than the passed target, "solving" the block"""
         self.header = tgt
-        while self.getHasH() <= tgt:
+        while self.getHash() <= tgt:
             self.nonce += 1
 
     def validate(self, unspentOutputs, maxMint):
@@ -263,7 +275,7 @@ class Blockchain(object):
             genesisTarget is the difficulty target of the genesis block (that you should create as part of this initialization).
             maxMintCoinsPerTx is a consensus parameter -- don't let any block into the chain that creates more coins than this!
         """
-        self.genesisBlock = Block(genesisTarget,None,None,None)
+        self.genesisBlock = Block(genesisTarget,None,None,None,None)
         self.maxMintCoinsPerTx = maxMintCoinsPerTx
         self.longestPowChain= self.genesisBlock
         self.forksTips = []
@@ -339,7 +351,7 @@ class Blockchain(object):
 
     def getBlocksAtHeight(self, height):
         """Return an array of all blocks in the blockchain at the passed height (including all forks)"""
-        return self._bfs(self.genesisBlock,height)
+        return self._bfsHeight(self.genesisBlock,height)
 
     def extend(self, block):
         """Adds this block into the blockchain in the proper location, if it is valid.  The "proper location" may not be the tip!
@@ -387,3 +399,5 @@ def Test():
     assert HashableMerkleTree([GivesHash(x) for x in [106874969902263813231722716312951672277654786095989753245644957127312510061509, 66221123338548294768926909213040317907064779196821799240800307624498097778386, 98188062817386391176748233602659695679763360599522475501622752979264247167302]]).calcMerkleRoot().to_bytes(32,"big").hex() == "ea670d796aa1f950025c4d9e7caf6b92a5c56ebeb37b95b072ca92bc99011c20"
 
     print ("yay local tests passed")
+
+Test()
