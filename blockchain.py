@@ -53,6 +53,7 @@ import copy
 import json
 # pip3 install dill
 import dill as serializer
+from collections import deque
 
 class Output:
     """ This models a transaction output """
@@ -111,7 +112,7 @@ class Transaction:
 
     def getOutput(self, n):
         """ Return the output at a particular index """
-        return self.outputs
+        return self.outputs[n]
 
     def validateMint(self, maxCoinsToCreate):
         """ Validate a mint (coin creation) transaction.
@@ -130,7 +131,7 @@ class Transaction:
         """
         # if you are taking 461: return True
     
-        pass
+        return True
 
 
 class HashableMerkleTree:
@@ -193,7 +194,7 @@ class Block:
         It should have the normal fields needed in a block and also an instance of "BlockContents"
         where we will store a merkle tree of transactions.
     """
-    def __init__(self,header,transactions):
+    def __init__(self,header,transactions,children=None, parent=None):
         # Hint, beyond the normal block header fields what extra data can you keep track of per block to make implementing other APIs easier?
         self.txs = transactions
         self.prevBlockHash = None
@@ -201,7 +202,8 @@ class Block:
         self.nonce = 0
         self.header = header
         self.BlockContents = HashableMerkleTree()
-
+        self.parent = parent
+        self.children = [] if not children else children
     def getContents(self):
         """ Return the Block content (a BlockContents object)"""
         return self.BlockContents
@@ -220,7 +222,7 @@ class Block:
 
     def getHash(self):
         """ Calculate the hash of this block. Return as an integer """
-        pass
+        return hashlib.sha256(self.txs,self.prevBlockHash,self.header,self.nonce,self.BlockContents.calcMerkleRoot())
 
     def setPriorBlockHash(self, priorHash):
         """ Assign the parent block hash """
@@ -261,24 +263,83 @@ class Blockchain(object):
             genesisTarget is the difficulty target of the genesis block (that you should create as part of this initialization).
             maxMintCoinsPerTx is a consensus parameter -- don't let any block into the chain that creates more coins than this!
         """
-        self.genesisBlock = Block(genesisTarget,None,None)
+        self.genesisBlock = Block(genesisTarget,None,None,None)
         self.maxMintCoinsPerTx = maxMintCoinsPerTx
+        self.longestPowChain= self.genesisBlock
+        self.forksTips = []
+
+    def _bsfGetTip(self,startNode):
+        q = deque()
+        q.append(startNode)
+        seen = set()
+        maxNode = (0,None)
+        currDepth = 0
+        while q:
+            for i in range(len(q)):
+                curr = q.popleft()
+                if len(curr.children) == 0:
+                    # we are at one of the possible tips
+                    if currDepth + 1 > maxNode[0]:
+                        maxNode = [currDepth + 1, curr]
+                for c in curr.children:
+                    if c not in seen:
+                        seen.add(c)
+                        q.append(c)
+                currDepth += 1
+        return maxNode[1]
 
     def getTip(self):
         """ Return the block at the tip (end) of the blockchain fork that has the largest amount of work"""
-        pass
+        return self._bsfGetTip(self.genesisBlock)
 
     def getWork(self, target):
         """Get the "work" needed for this target.  Work is the ratio of the genesis target to the passed target"""
-        return target.getTarget()/self.genesisBlock.getTarget()
+        return target/self.genesisBlock.getTarget()
 
+    def _bfsWork(self,startBlock,targetHash):
+        q = deque()
+        q.append(startBlock)
+        seen = set()
+        currWork = 0
+        while q:
+            for i in range(len(q)):
+                curr = q.pop()
+                for c in curr.children:
+                    if c not in seen:
+                        if c.getHash() == targetHash:
+                            return currWork + 1
+                        seen.add(c)
+                        q.append(c)
+                currWork += 1
+        return None
+    
     def getCumulativeWork(self, blkHash):
         """Return the cumulative work for the block identified by the passed hash.  Return None if the block is not in the blockchain"""
-        pass
+        self._bfsWork(self.genesisBlock,blkHash)
+
+    
+    def _bfsHeight(self,startNode,targetHeight):
+        q = deque()
+        q.append(startNode)
+        seen = set()
+        currHeight = 0
+        while q:
+            for i in range(len(q)):
+                curr = q.pop()
+                blocksAtHeight = []
+                for c in curr.children:
+                    if c not in seen:
+                        seen.add(c)
+                        blocksAtHeight.append(c)
+                        q.append(c)
+                if currHeight == targetHeight:
+                    return blocksAtHeight
+                currHeight += 1
+        return []
 
     def getBlocksAtHeight(self, height):
         """Return an array of all blocks in the blockchain at the passed height (including all forks)"""
-        pass
+        return self._bfs(self.genesisBlock,height)
 
     def extend(self, block):
         """Adds this block into the blockchain in the proper location, if it is valid.  The "proper location" may not be the tip!
