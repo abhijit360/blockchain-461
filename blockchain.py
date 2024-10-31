@@ -165,6 +165,8 @@ class HashableMerkleTree:
         returnArr = []
         while second <= len(arr) -1:
            returnArr.append(hashlib.sha256(arr[first],arr[second]))
+           second +=1
+           first +=1
         return self._findMerkelHash(returnArr)
 
     def calcMerkleRoot(self):
@@ -297,7 +299,7 @@ class Blockchain(object):
                     if c not in seen:
                         seen.add(c)
                         q.append(c)
-                currDepth += 1
+            currDepth += 1
         return maxNode[1]
 
     def getTip(self):
@@ -315,14 +317,14 @@ class Blockchain(object):
         currWork = 0
         while q:
             for i in range(len(q)):
-                curr = q.pop()
+                curr = q.popleft()
                 for c in curr.children:
                     if c not in seen:
                         if c.getHash() == targetHash:
                             return currWork + 1
                         seen.add(c)
                         q.append(c)
-                currWork += 1
+            currWork += 1
         return None
     
     def getCumulativeWork(self, blkHash):
@@ -337,7 +339,7 @@ class Blockchain(object):
         currHeight = 0
         while q:
             for i in range(len(q)):
-                curr = q.pop()
+                curr = q.popleft()
                 blocksAtHeight = []
                 for c in curr.children:
                     if c not in seen:
@@ -346,7 +348,7 @@ class Blockchain(object):
                         q.append(c)
                 if currHeight == targetHeight:
                     return blocksAtHeight
-                currHeight += 1
+            currHeight += 1
         return []
 
     def getBlocksAtHeight(self, height):
