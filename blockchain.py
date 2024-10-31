@@ -153,8 +153,13 @@ class HashableMerkleTree:
         self.hashableList = hashableList
 
     def _findMerkelHash(self,arr):
+        if arr == None:
+            return 0
         if len(arr) == 1:
             return arr[0]
+        if len(arr) % 2 != 0:
+            # check at each layer if it is odd and add zero to make it even
+            arr.append(0)
         first,second = 0,1
         returnArr = []
         while second <= len(arr) -1:
@@ -188,10 +193,9 @@ class Block:
         It should have the normal fields needed in a block and also an instance of "BlockContents"
         where we will store a merkle tree of transactions.
     """
-    def __init__(self,header,inputs, outputs):
+    def __init__(self,header,transactions):
         # Hint, beyond the normal block header fields what extra data can you keep track of per block to make implementing other APIs easier?
-        self.inputs = inputs 
-        self.outputs = outputs
+        self.txs = transactions
         self.prevBlockHash = None
         self.target = None
         self.nonce = 0
