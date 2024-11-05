@@ -158,15 +158,15 @@ class HashableMerkleTree:
             return 0
         if len(arr) == 1:
             return arr[0]
-        if len(arr) % 2 != 0:
+        if len(arr) != 1 and len(arr) % 2 != 0:
             # check at each layer if it is odd and add zero to make it even
-            arr.append(0)
-        first,second = 0,1
+            arr.append(Transaction(None,None,None))
         returnArr = []
-        while second <= len(arr) -1:
-           returnArr.append(hashlib.sha256(arr[first],arr[second]))
-           second +=1
-           first +=1
+        print("arr",arr)
+        for i in range(0, len(arr), 2):
+            combined = hashlib.sha256(arr[i].getHash() + arr[i + 1].getHash()).digest()
+            returnArr.append(combined)
+        print("returnArr",returnArr)
         return self._findMerkelHash(returnArr)
 
     def calcMerkleRoot(self):
@@ -203,16 +203,16 @@ class Block:
         self.nonce = 0
         self.target = target
         self.header = header
-        self.BlockContents = HashableMerkleTree()
+        self.BlockContents = BlockContents()
         self.parent = parent
         self.children = [] if not children else children
     def getContents(self):
         """ Return the Block content (a BlockContents object)"""
-        return self.BlockContents
+        return self.BlockContents.getData()
 
     def setContents(self, data):
         """ set the contents of this block's merkle tree to the list of objects in the data parameter """
-        self.BlockContents = HashableMerkleTree(data)
+        self.BlockContents.setData(data)
 
     def setTarget(self, target):
         """ Set the difficulty target of this block """
@@ -224,7 +224,11 @@ class Block:
 
     def getHash(self):
         """ Calculate the hash of this block. Return as an integer """
-        txs_data = str(self.txs).encode()  
+        txsHashSum = ""
+        for t in self.txs:
+            # concatenate all the transaction hashes
+            txsHashSum += t.getHash()
+        txsHash = txsHashSum.encode()  
         prev_hash_data = str(self.prevBlockHash).encode() if self.prevBlockHash else b''  
         header_data = str(self.header).encode() if self.header else b''  
         nonce_data = str(self.nonce).encode()  
