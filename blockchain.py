@@ -172,7 +172,6 @@ class HashableMerkleTree:
             # check at each layer if it is odd and add zero to make it even
             arr.append(0)
         returnArr = []
-        print("arr",arr)
         for i in range(0, len(arr), 2):
             first,second = arr[i], arr[i+1]
             if first == 0:
@@ -184,12 +183,15 @@ class HashableMerkleTree:
             else:
                 second = second.getHash()
 
-            combined = hashlib.sha256(first,second).digest()
+            combined = hashlib.sha256(first+second).digest()
             returnArr.append(combined)
         return self._findMerkelHash(returnArr)
 
     def calcMerkleRoot(self):
         """ Calculate the merkle root of this tree."""
+        # TESTDATA = self._findMerkelHash(self.hashableList)
+        if self.hashableList:
+            for 
         return int.from_bytes(self._findMerkelHash(self.hashableList),"big")
 
 
@@ -250,9 +252,11 @@ class Block:
         nonceHash = hashlib.sha256(str(self.nonce).encode()).digest()
         targetHash = hashlib.sha256(str(self.target).encode()).digest()
         merkleRoot = self.BlockContents.calcMerkleRoot().to_bytes(32, 'big')  
-        parentHash = self.parent.to_bytes(32, 'big')  
+        parentHash = b'\x00' * 32 
+        if self.parent:
+            parentHash = self.parent.to_bytes(32, 'big')  
         concatenatedHash = txsHash + nonceHash + targetHash + merkleRoot + parentHash
-        return int.from_bytes(hashlib.sha256(concatenatedHash),"big")
+        return  int.from_bytes(hashlib.sha256(concatenatedHash).digest(),"big")
         
   
 
@@ -267,7 +271,7 @@ class Block:
     def mine(self,tgt):
         """Update the block header to the passed target (tgt) and then search for a nonce which produces a block who's hash is less than the passed target, "solving" the block"""
         self.header = tgt
-        while self.getHash() <= tgt:
+        while self.getHash() >= tgt:
             self.nonce += 1
 
     def validate(self, unspentOutputs, maxMint):
