@@ -161,7 +161,7 @@ class HashableMerkleTree:
     """
 
     def __init__(self, hashableList = None):
-        self.hashableList = hashableList
+        self.hashableList = [] if hashableList is None else hashableList 
 
     def _findMerkelHash(self,arr):
         if arr == None:
@@ -171,28 +171,28 @@ class HashableMerkleTree:
         if len(arr) != 1 and len(arr) % 2 != 0:
             # check at each layer if it is odd and add zero to make it even
             arr.append(0)
+            
         returnArr = []
-        for i in range(0, len(arr), 2):
-            first,second = arr[i], arr[i+1]
-            if first == 0:
-                first = b'\x00' * 32 
-            else:
-                first = first.getHash()
-            if second == 0:
-                second = b'\x00' * 32 
-            else:
-                second = second.getHash()
 
-            combined = hashlib.sha256(first+second).digest()
-            returnArr.append(combined)
+        for i in range(0, len(arr), 2):
+            first = int(0) if arr[i] == 0 else arr[i]
+            second = int(0) if arr[i+1] == 0 else arr[i+1]
+            combined = hashlib.sha256()
+            combined.update(first.to_bytes(32,'big'))
+            combined.update(second.to_bytes(32,'big'))
+            bigE = int.from_bytes(combined.digest(),"big") 
+            returnArr.append(bigE)
         return self._findMerkelHash(returnArr)
 
     def calcMerkleRoot(self):
         """ Calculate the merkle root of this tree."""
         # TESTDATA = self._findMerkelHash(self.hashableList)
-        if self.hashableList:
-            for 
-        return int.from_bytes(self._findMerkelHash(self.hashableList),"big")
+        
+        if len(self.hashableList) == 0:
+            return 0
+    
+        hashes = [h.getHash() for h in self.hashableList] # all big endian ints
+        return self._findMerkelHash(hashes) 
 
 
 class BlockContents:
@@ -204,7 +204,7 @@ class BlockContents:
         self.data = HashableMerkleTree()
 
     def setData(self, d):
-        self.data = d
+        self.data = HashableMerkleTree(d)
 
     def getData(self):
         return self.data
@@ -227,6 +227,7 @@ class Block:
         self.BlockContents = BlockContents()
         self.parent = parent
         self.children = [] if not children else children
+
     def getContents(self):
         """ Return the Block content (a BlockContents object)"""
         return self.BlockContents.getData()
@@ -245,18 +246,23 @@ class Block:
 
     def getHash(self):
         """ Calculate the hash of this block. Return as an integer """
-        txsHash = b""
+        hash = hashlib.sha256()
         if self.txs:
             for t in self.txs:
-                txsHash += t.getHash()
+                hash.update(t.getHash())
+        
         nonceHash = hashlib.sha256(str(self.nonce).encode()).digest()
+        hash.update(nonceHash)
         targetHash = hashlib.sha256(str(self.target).encode()).digest()
+        hash.update(targetHash)
         merkleRoot = self.BlockContents.calcMerkleRoot().to_bytes(32, 'big')  
+        hash.update(merkleRoot)
         parentHash = b'\x00' * 32 
         if self.parent:
             parentHash = self.parent.to_bytes(32, 'big')  
-        concatenatedHash = txsHash + nonceHash + targetHash + merkleRoot + parentHash
-        return  int.from_bytes(hashlib.sha256(concatenatedHash).digest(),"big")
+        hash.update(parentHash)
+        
+        return  int.from_bytes(hash.digest(),"big")
         
   
 
@@ -304,7 +310,7 @@ class Blockchain(object):
         self.longestPowChain= self.genesisBlock
         self.forksTips = []
 
-    def _bsfGetTip(self,startNode):
+    def _bfsGetTip(self,startNode):
         q = deque()
         q.append(startNode)
         seen = set()
@@ -326,7 +332,7 @@ class Blockchain(object):
 
     def getTip(self):
         """ Return the block at the tip (end) of the blockchain fork that has the largest amount of work"""
-        return self._bsfGetTip(self.genesisBlock)
+        return self._bfsGetTip(self.genesisBlock)
 
     def getWork(self, target):
         """Get the "work" needed for this target.  Work is the ratio of the genesis target to the passed target"""
@@ -418,7 +424,7 @@ def Test():
         def getHash(self):
             return self.hash
 
-    assert HashableMerkleTree([GivesHash(x) for x in [106874969902263813231722716312951672277654786095989753245644957127312510061509]]).calcMerkleRoot().to_bytes(32,"big").hex() == "ec4916dd28fc4c10d78e287ca5d9cc51ee1ae73cbfde08c6b37324cbfaac8bc5"
+    assert HashableMerkleTree([GivesHash(x) for x in [106874969902263813231722716312951672277654786095989753245644957127312510061509]]).calcMerkleRoot() .to_bytes(32,"big").hex() == "ec4916dd28fc4c10d78e287ca5d9cc51ee1ae73cbfde08c6b37324cbfaac8bc5"
 
     assert HashableMerkleTree([GivesHash(x) for x in [106874969902263813231722716312951672277654786095989753245644957127312510061509, 66221123338548294768926909213040317907064779196821799240800307624498097778386, 98188062817386391176748233602659695679763360599522475501622752979264247167302]]).calcMerkleRoot().to_bytes(32,"big").hex() == "ea670d796aa1f950025c4d9e7caf6b92a5c56ebeb37b95b072ca92bc99011c20"
 
