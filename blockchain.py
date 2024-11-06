@@ -308,7 +308,6 @@ class Blockchain(object):
         self.genesisBlock = Block(genesisTarget,None,None,None,None)
         self.maxMintCoinsPerTx = maxMintCoinsPerTx
         self.longestPowChain= self.genesisBlock
-        self.forksTips = []
 
     def _bfsGetTip(self,startNode):
         q = deque()
@@ -357,7 +356,7 @@ class Blockchain(object):
     
     def getCumulativeWork(self, blkHash):
         """Return the cumulative work for the block identified by the passed hash.  Return None if the block is not in the blockchain"""
-        self._bfsWork(self.genesisBlock,blkHash)
+        return self._bfsWork(self.genesisBlock,blkHash)
 
     
     def _bfsHeight(self,startNode,targetHeight):
@@ -394,7 +393,40 @@ class Blockchain(object):
            so you can easily "hop" between tips.
 
            Return false if the block is invalid (breaks any miner constraints), and do not add it to the blockchain."""
-        pass
+        
+        parentHash = block.parent
+        parentBlock = self._findBlockByHash(parentHash)
+        if parentHash is None or not parentHash:
+            return False 
+        
+        validMint = True
+
+        for txs in block.txs:
+            validMint = validMint and txs.validateMint(self.maxMintCoinsPerTx)
+
+        if not validMint:
+            return False
+
+        parentBlock.children.append(block)
+        return True
+
+
+    def _findBlockByHash(self,hash):
+        q = deque()
+        q.append(self.genesisBlock)
+        seen = set()
+        seen.add(self.genesisBlock)
+
+        while q:
+            curr = q.popleft()
+            if curr.getHash() == hash:
+                return curr
+            
+            for c in curr.children:
+                if c not in seen:
+                    q.append(c) 
+
+        return None
 
 
 # --------------------------------------------
