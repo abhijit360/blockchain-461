@@ -104,7 +104,15 @@ class Transaction:
 
     def getHash(self):
         """Return this transaction's probabilistically unique identifier as a big-endian integer"""
-        return hashlib.sha256(self.inputs,self.outputs,self.data)
+        inputHash = ""
+        outputHash = ""
+        if self.inputs:
+            for i in self.inputs:
+                inputHash += i.hash
+
+        
+        inputsOutputs = hashlib.sha256(inputHash) + hashlib.sha256(outputHash) + self.data
+        return hashlib.sha256(inputsOutputs)
 
     def getInputs(self):
         """ return a list of all inputs that are being spent """
@@ -122,7 +130,9 @@ class Transaction:
         total_coins = 0
         for out in self.outputs:
             total_coins += out.amount
-        return total_coins <= maxCoinsToCreate
+        
+        # no inputs and coins it creates less than maxCoinsToCreate
+        return not self.inputs and total_coins <= maxCoinsToCreate
 
     def validate(self, unspentOutputDict):
         """ Validate this transaction given a dictionary of unspent transaction outputs.
@@ -155,23 +165,32 @@ class HashableMerkleTree:
 
     def _findMerkelHash(self,arr):
         if arr == None:
-            return 0
+            return b'\x00' * 32 
         if len(arr) == 1:
             return arr[0]
         if len(arr) != 1 and len(arr) % 2 != 0:
             # check at each layer if it is odd and add zero to make it even
-            arr.append(Transaction(None,None,None))
+            arr.append(0)
         returnArr = []
         print("arr",arr)
         for i in range(0, len(arr), 2):
-            combined = hashlib.sha256(arr[i].getHash() + arr[i + 1].getHash()).digest()
+            first,second = arr[i], arr[i+1]
+            if first == 0:
+                first = b'\x00' * 32 
+            else:
+                first = first.getHash()
+            if second == 0:
+                second = b'\x00' * 32 
+            else:
+                second = second.getHash()
+
+            combined = hashlib.sha256(first,second).digest()
             returnArr.append(combined)
-        print("returnArr",returnArr)
         return self._findMerkelHash(returnArr)
 
     def calcMerkleRoot(self):
         """ Calculate the merkle root of this tree."""
-        return self._findMerkelHash(self.hashableList)
+        return int.from_bytes(self._findMerkelHash(self.hashableList),"big")
 
 
 class BlockContents:
@@ -224,22 +243,17 @@ class Block:
 
     def getHash(self):
         """ Calculate the hash of this block. Return as an integer """
-        txsHashSum = ""
-        for t in self.txs:
-            # concatenate all the transaction hashes
-            txsHashSum += t.getHash()
-        txsHash = txsHashSum.encode()  
-        prev_hash_data = str(self.prevBlockHash).encode() if self.prevBlockHash else b''  
-        header_data = str(self.header).encode() if self.header else b''  
-        nonce_data = str(self.nonce).encode()  
-        merkle_root_data = str(self.BlockContents.calcMerkleRoot()).encode()  
+        txsHash = b""
+        if self.txs:
+            for t in self.txs:
+                txsHash += t.getHash()
+        nonceHash = hashlib.sha256(str(self.nonce).encode()).digest()
+        targetHash = hashlib.sha256(str(self.target).encode()).digest()
+        merkleRoot = self.BlockContents.calcMerkleRoot().to_bytes(32, 'big')  
+        parentHash = self.parent.to_bytes(32, 'big')  
+        concatenatedHash = txsHash + nonceHash + targetHash + merkleRoot + parentHash
+        return int.from_bytes(hashlib.sha256(concatenatedHash),"big")
         
-        # Concatenate all byte data
-        combined_data = txs_data + prev_hash_data + header_data + nonce_data + merkle_root_data
-        
-
-        block_hash = hashlib.sha256(combined_data).hexdigest()
-        return int(block_hash, 16)
   
 
     def setPriorBlockHash(self, priorHash):
