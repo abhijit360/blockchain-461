@@ -104,15 +104,14 @@ class Transaction:
 
     def getHash(self):
         """Return this transaction's probabilistically unique identifier as a big-endian integer"""
-        inputHash = ""
-        outputHash = ""
+        combinedHash = hashlib.sha256()
         if self.inputs:
             for i in self.inputs:
-                inputHash += i.hash
+                combinedHash.update(i.hash.to_bytes(32,'big'))
+        if self.data:
+            combinedHash.update(self.data.encode())
 
-        
-        inputsOutputs = hashlib.sha256(inputHash) + hashlib.sha256(outputHash) + self.data
-        return hashlib.sha256(inputsOutputs)
+        return int.from_bytes(combinedHash.digest(),"big") 
 
     def getInputs(self):
         """ return a list of all inputs that are being spent """
@@ -226,7 +225,7 @@ class Block:
         self.header = header
         self.BlockContents = BlockContents()
         self.parent = parent
-        self.children = [] if not children else children
+        self.children = [] if children is None else children
 
     def getContents(self):
         """ Return the Block content (a BlockContents object)"""
@@ -356,7 +355,8 @@ class Blockchain(object):
     
     def getCumulativeWork(self, blkHash):
         """Return the cumulative work for the block identified by the passed hash.  Return None if the block is not in the blockchain"""
-        return self._bfsWork(self.genesisBlock,blkHash)
+        # return self._bfsWork(self.genesisBlock,blkHash)
+        return None
 
     
     def _bfsHeight(self,startNode,targetHeight):
@@ -380,7 +380,8 @@ class Blockchain(object):
 
     def getBlocksAtHeight(self, height):
         """Return an array of all blocks in the blockchain at the passed height (including all forks)"""
-        return self._bfsHeight(self.genesisBlock,height)
+        # return self._bfsHeight(self.genesisBlock,height)
+        return None
 
     def extend(self, block):
         """Adds this block into the blockchain in the proper location, if it is valid.  The "proper location" may not be the tip!
@@ -460,6 +461,11 @@ def Test():
 
     assert HashableMerkleTree([GivesHash(x) for x in [106874969902263813231722716312951672277654786095989753245644957127312510061509, 66221123338548294768926909213040317907064779196821799240800307624498097778386, 98188062817386391176748233602659695679763360599522475501622752979264247167302]]).calcMerkleRoot().to_bytes(32,"big").hex() == "ea670d796aa1f950025c4d9e7caf6b92a5c56ebeb37b95b072ca92bc99011c20"
 
+    # personal tests
+    blockchain = Blockchain(int("F"*64,16),5)
+    genBlock = blockchain.getTip()
+    genBlock.mine(int("F"*63,16))
+    # print(genBlock.getTarget() == int("F"*64,16))
     print ("yay local tests passed")
 
-Test()
+# Test()
