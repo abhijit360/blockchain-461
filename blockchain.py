@@ -104,14 +104,9 @@ class Transaction:
 
     def getHash(self):
         """Return this transaction's probabilistically unique identifier as a big-endian integer"""
-        combinedHash = hashlib.sha256()
-        if self.inputs:
-            for i in self.inputs:
-                combinedHash.update(i.hash.to_bytes(32,'big'))
-        if self.data:
-            combinedHash.update(self.data.encode())
 
-        return int.from_bytes(combinedHash.digest(),"big") 
+        ''' read instructions, use a serialised up top (dil.dumps lmao) and hash it'''
+        return int.from_bytes(serializer.dumps(self),"big") 
 
     def getInputs(self):
         """ return a list of all inputs that are being spent """
@@ -222,7 +217,6 @@ class Block:
         self.prevBlockHash = None
         self.nonce = 0
         self.target = target
-        self.header = header
         self.BlockContents = BlockContents()
         self.parent = parent
         self.children = [] if children is None else children
@@ -275,8 +269,11 @@ class Block:
 
     def mine(self,tgt):
         """Update the block header to the passed target (tgt) and then search for a nonce which produces a block who's hash is less than the passed target, "solving" the block"""
-        self.header = tgt
-        while self.getHash() >= tgt:
+        '''
+            creating a block that is eligble to be added
+        '''
+        self.target = tgt
+        while self.getHash() < tgt:
             self.nonce += 1
 
     def validate(self, unspentOutputs, maxMint):
@@ -336,27 +333,21 @@ class Blockchain(object):
         """Get the "work" needed for this target.  Work is the ratio of the genesis target to the passed target"""
         return target/self.genesisBlock.getTarget()
 
-    def _bfsWork(self,startBlock,targetHash):
-        q = deque()
-        q.append(startBlock)
-        seen = set()
-        currWork = 0
-        while q:
-            for i in range(len(q)):
-                curr = q.popleft()
-                for c in curr.children:
-                    if c not in seen:
-                        if c.getHash() == targetHash:
-                            return currWork + 1
-                        seen.add(c)
-                        q.append(c)
-            currWork += 1
+    def _dfsWork(self, startBlock, targetHash):
+        for c in startBlock.children:
+            if c.getHash() == targetHash:
+                return self.getWork(c.target)
+            val = self._dfsWork(c, targetHash)
+            if val is not None:
+                return self.getWork(c.target) + val
         return None
-    
+
     def getCumulativeWork(self, blkHash):
         """Return the cumulative work for the block identified by the passed hash.  Return None if the block is not in the blockchain"""
-        # return self._bfsWork(self.genesisBlock,blkHash)
-        return None
+
+        """ we are cocnerned witht he work at each block inclduding the genesis and current block (not just the edges), 
+        finally we want utilise an exisiting .get_work() func to get the work given a target at the block the we're at"""
+        return self._dfsWork(self.genesisBlock,blkHash) 
 
     
     def _bfsHeight(self,startNode,targetHeight):
@@ -402,8 +393,10 @@ class Blockchain(object):
         
         validMint = True
 
-        for txs in block.txs:
-            validMint = validMint and txs.validateMint(self.maxMintCoinsPerTx)
+        # checkk only the coinbase transaction
+        if block.txs:
+            coinbase = block.txs[0]
+            validMint = validMint and coinbase.validateMin(self.maxMintCoinsPerTx)
 
         if not validMint:
             return False
@@ -469,3 +462,11 @@ def Test():
     print ("yay local tests passed")
 
 # Test()
+
+
+'''
+a block with a coin base transaction ( no inputs & outputs)
+each output has a constraint function (set of outputs)
+genesis and one minting 
+
+'''
